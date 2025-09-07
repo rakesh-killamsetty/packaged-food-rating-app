@@ -1,5 +1,5 @@
 // API service for connecting to Python backend
-const API_BASE_URL = 'http://localhost:8501/api';
+const API_BASE_URL = 'http://localhost:8000';
 
 export interface NutritionData {
   calories: number;
@@ -76,7 +76,8 @@ class ApiService {
     formData.append('image', imageFile);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/analyze-image`, {
+      console.log('📤 Sending image to backend for analysis...');
+      const response = await fetch(`${API_BASE_URL}/analyze-image-gemini`, {
         method: 'POST',
         body: formData,
       });
@@ -86,9 +87,10 @@ class ApiService {
       }
 
       const data = await response.json();
+      console.log('✅ Backend analysis successful:', data);
       return { success: true, data };
     } catch (error) {
-      console.error('Image analysis failed:', error);
+      console.error('❌ Image analysis failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Image analysis failed',

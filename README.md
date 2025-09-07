@@ -1,133 +1,111 @@
-# FoodScore - Health Rating Platform
+# FoodScore – Medical‑grade Packaged Food Rating
 
-A modern React-based web application that provides instant health scores for packaged foods using medical-grade analysis backed by WHO, FDA, and peer-reviewed research.
+FoodScore is a React + FastAPI application that converts barcodes/labels into a health score with clear medical explanations. OCR + barcode detection extract data from images, then Gemini performs medical analysis, and a scoring engine produces the final score with evidence and recommendations.
 
-## 🚀 Features
+## ✨ Features
 
-- **Medical-Grade Analysis**: Scoring based on WHO, FDA guidelines and peer-reviewed research
-- **Instant Insights**: Get your health score in seconds with clear explanations
-- **Multiple Input Methods**: 
-  - Barcode scanning from images
-  - Manual barcode entry
-  - Product name search
-- **Beautiful UI**: Modern dark/light theme with 3D animations
-- **Scan History**: Track your previous scans and health scores
-- **Real-time Analysis**: Powered by advanced AI and medical databases
+- **Gemini medical analysis** for products (image → nutrition/ingredients → risks/recommendations)
+- **OCR + barcode detection**: EasyOCR/PyTesseract + OpenCV + Pyzbar
+- **Multiple inputs**: upload image, enter barcode, or product name
+- **Accurate scoring** using WHO/FDA style thresholds and nutrient limits
+- **Modern UI**: Dark/light themes, animations, history of scans
 
-## 🛠️ Tech Stack
+## 🧱 Tech Stack
 
-### Frontend
-- **React 19** with TypeScript
-- **Vite** for fast development and building
-- **Tailwind CSS** for styling
-- **Framer Motion** for animations
-- **Three.js** for 3D effects
-- **Radix UI** for accessible components
+- Frontend: React + TypeScript, Vite, Tailwind CSS, Framer Motion, React‑Three‑Fiber
+- Backend: FastAPI (Python), EasyOCR/PyTesseract, OpenCV, Pyzbar, Google Gemini API
+- Data sources: OpenFoodFacts, (planned) USDA FoodData Central
 
-### Backend
-- **FastAPI** for the API server
-- **Python** modules for:
-  - OCR processing (EasyOCR)
-  - Barcode lookup (OpenFoodFacts API)
-  - LLM text extraction (OpenAI, Anthropic)
-  - Medical nutrition analysis
-  - Health scoring engine
+## 🗺️ Architecture (high level)
 
-## 📦 Installation
+1. User uploads photo or enters barcode/name in the React app
+2. Backend extracts barcode + OCR text → normalizes nutrition + ingredients
+3. Gemini analyzes medical suitability and risks → returns structured JSON
+4. Scoring engine merges OCR/nutrition with LLM insights → health score
+5. Frontend renders score ring, nutrients, concerns, recommendations, history
 
-### Prerequisites
-- Node.js 18+ 
-- Python 3.8+
-- npm or yarn
+## ✅ Prerequisites
 
-### Frontend Setup
+- Node.js 18+
+- Python 3.10+ (recommended)
+- A Google Gemini API key
+
+## ⚙️ Setup
+
+1) Install backend dependencies
+```bash
+pip install -r backend_requirements.txt
+```
+
+2) Set Gemini API key (PowerShell on Windows)
+```powershell
+$env:GEMINI_API_KEY="YOUR_GEMINI_KEY"
+```
+Keep this terminal open – environment variables are per‑shell.
+
+3) Start backend (FastAPI)
+```bash
+python backend_api.py
+# API: http://localhost:8000
+# Docs: http://localhost:8000/docs
+```
+
+4) Install frontend and run Vite dev server
 ```bash
 cd foodscore-react
 npm install
-npm run dev
+npm run dev 
+# App: http://localhost:3000
 ```
 
-### Backend Setup
-```bash
-# Install Python dependencies
-pip install -r backend_requirements.txt
+## 🚀 How to Use
 
-# Start the FastAPI server
-python backend_api.py
-```
+1. Open http://localhost:3000
+2. Upload a barcode/label/product image, or enter barcode/product name
+3. Review: score, nutrient bars, medical concerns, recommendations, evidence
+4. Toggle theme and view your scan history
 
-## 🚀 Quick Start
+## 🔒 Environment & Ports
 
-1. **Start the React app**:
-   ```bash
-   cd foodscore-react
-   npm run dev
-   ```
+- Backend runs at `http://localhost:3000`
+- Frontend runs at `http://localhost:3000`
+- CORS is enabled for  3000 
 
-2. **Start the backend API**:
-   ```bash
-   python backend_api.py
-   ```
+If the frontend can’t connect, ensure you started the backend shell with `GEMINI_API_KEY` set, and that the frontend is on 5173. Use the same PC/local network.
 
-3. **Open your browser** to `http://localhost:3000`
+## 🧪 Troubleshooting
 
-## 📱 Usage
+- Frontend shows mock/sample data: confirm `GEMINI_API_KEY` is set in the same terminal that starts `backend_api.py`
+- 404 when curling 5173: open the URL in a browser (Vite dev server serves the SPA path)
+- Barcode not detected: ensure clear, well‑lit image with the barcode fully visible
+- OCR misses text: crop to the nutrition label region and retry
 
-1. **Upload an image** of a barcode or food label
-2. **Or manually enter** a barcode number or product name
-3. **Get instant results** with:
-   - Health score (0-100)
-   - Detailed nutrition breakdown
-   - Medical recommendations
-   - Evidence-based explanations
+## 📚 References
 
-## 🎨 Themes
+- WHO/FAO diet and nutrition guidance
+- FDA guidance on nutrition labeling and daily values
+- OpenFoodFacts API
+- Google Generative AI (Gemini) – model API
 
-The application supports both dark and light themes with a toggle button in the navigation bar.
-
-## 📊 Health Scoring
-
-Health scores are calculated using:
-- **WHO guidelines** for nutrition
-- **FDA recommendations** for food safety
-- **Medical research** for ingredient analysis
-- **Peer-reviewed studies** for health impacts
-
-## 🔧 Development
-
-### Project Structure
+## 📂 Project Structure
 ```
 foodscore-react/
-├── src/
-│   ├── components/     # React components
-│   ├── contexts/       # React contexts
-│   ├── services/       # API services
-│   └── App.tsx         # Main app component
-├── modules/            # Python backend modules
-├── backend_api.py      # FastAPI server
-└── README.md
+  src/
+    components/
+    contexts/
+    services/
+    App.tsx
+backend_api.py            # FastAPI server and endpoints
+modules/                  # OCR, LLM, scoring, helpers
+backend_requirements.txt
+README.md
 ```
 
-### Available Scripts
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
+## 📝 Scripts
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Support
-
-For support or questions, please open an issue in the repository.
+- Frontend: `npm run dev -- --port 3000`
+- Backend: `python backend_api.py`
 
 ---
 
-**Made with ❤️ for healthier food choices**
+Made with ❤️ to help you choose healthier packaged foods.

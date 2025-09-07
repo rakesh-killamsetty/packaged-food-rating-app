@@ -1,6 +1,15 @@
 from typing import Dict, List, Any, Tuple
 import math
 
+# Try to import medical LLM service, fallback gracefully if not available
+try:
+    from .medical_llm_service import medical_llm_service
+    MEDICAL_LLM_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Medical LLM service not available: {e}")
+    medical_llm_service = None
+    MEDICAL_LLM_AVAILABLE = False
+
 class HealthScoringEngine:
     def __init__(self):
         # WHO, FDA, and FSSAI guidelines for health scoring
@@ -95,10 +104,14 @@ class HealthScoringEngine:
         }
     
     def calculate_score(self, normalized_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate health score based on normalized product data"""
+        """Calculate health score based on normalized product data with medical LLM enhancement"""
         try:
             nutrition = normalized_data.get('nutrition', {})
             ingredients = normalized_data.get('ingredients', [])
+            product_name = normalized_data.get('product_name', 'Unknown Product')
+            
+            # Get medical LLM analysis for enhanced scoring
+            medical_analysis = self._get_medical_analysis(product_name, ingredients, nutrition)
             
             # Initialize score components
             score_components = {}
@@ -112,6 +125,10 @@ class HealthScoringEngine:
             # Calculate ingredient-based scores
             ingredient_scores = self._calculate_ingredient_scores(normalized_data)
             score_components.update(ingredient_scores)
+            
+            # Apply medical LLM insights to scoring
+            medical_scores = self._apply_medical_insights(medical_analysis, normalized_data)
+            score_components.update(medical_scores)
             
             # Calculate total score
             for component, score_info in score_components.items():
@@ -132,7 +149,9 @@ class HealthScoringEngine:
                 'triggered_rules': triggered_rules,
                 'max_possible_score': 100,
                 'min_possible_score': 0,
-                'score_impact': total_score - 50
+                'score_impact': total_score - 50,
+                'medical_analysis': medical_analysis,
+                'medical_enhanced': True
             }
             
         except Exception as e:
@@ -141,7 +160,8 @@ class HealthScoringEngine:
                 'band': 'Poor',
                 'error': f"Scoring failed: {str(e)}",
                 'score_components': {},
-                'triggered_rules': []
+                'triggered_rules': [],
+                'medical_enhanced': False
             }
     
     def _calculate_nutrition_scores(self, nutrition: Dict[str, float]) -> Dict[str, Any]:
@@ -278,3 +298,94 @@ class HealthScoringEngine:
             return f"High {rule['description']}: {value} (penalty: {score_info['score_impact']} points)"
         else:
             return f"Moderate {rule['description']}: {value} (no impact on score)"
+    
+    def _get_medical_analysis(self, product_name: str, ingredients: List[str], nutrition: Dict[str, float]) -> Dict[str, Any]:
+        """Get medical analysis from BioMistral LLM"""
+        if not MEDICAL_LLM_AVAILABLE or not medical_llm_service:
+            return {'error': 'Medical LLM service not available'}
+            
+        try:
+            # Convert nutrition values to strings for medical LLM
+            nutrition_str = {}
+            for key, value in nutrition.items():
+                if isinstance(value, (int, float)):
+                    if 'sodium' in key.lower():
+                        nutrition_str[key] = f"{value}mg"
+                    elif 'sugar' in key.lower() or 'fat' in key.lower() or 'protein' in key.lower() or 'fiber' in key.lower():
+                        nutrition_str[key] = f"{value}g"
+                    else:
+                        nutrition_str[key] = f"{value}"
+                else:
+                    nutrition_str[key] = str(value)
+            
+            return medical_llm_service.analyze_food_nutrition(
+                product_name=product_name,
+                ingredients=ingredients,
+                nutrition_facts=nutrition_str
+            )
+        except Exception as e:
+            return {'error': f'Medical analysis failed: {str(e)}'}
+    
+    def _apply_medical_insights(self, medical_analysis: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply medical LLM insights to scoring"""
+        medical_scores = {}
+        
+        try:
+            # Extract health score from medical analysis
+            medical_health_score = medical_analysis.get('health_score', 75)
+            
+            # Calculate medical score impact (difference from baseline)
+            medical_impact = (medical_health_score - 75) * 0.3  # Scale medical score impact
+            
+            medical_scores['medical_llm_analysis'] = {
+                'rule_name': 'medical_llm_analysis',
+                'value': medical_health_score,
+                'score_impact': round(medical_impact),
+                'description': 'Medical LLM health assessment',
+                'source': 'BioMistral-7B Medical Model',
+                'medical_concerns': medical_analysis.get('medical_concerns', ''),
+                'clinical_recommendations': medical_analysis.get('clinical_recommendations', [])
+            }
+            
+            # Apply medical contraindications penalty
+            contraindications = medical_analysis.get('contraindications', [])
+            if contraindications:
+                contraindication_penalty = -len(contraindications) * 5
+                medical_scores['medical_contraindications'] = {
+                    'rule_name': 'medical_contraindications',
+                    'value': len(contraindications),
+                    'score_impact': contraindication_penalty,
+                    'description': 'Medical contraindications identified',
+                    'source': 'BioMistral-7B Medical Model',
+                    'contraindications': contraindications
+                }
+            
+            # Apply nutrient analysis insights
+            nutrient_analysis = medical_analysis.get('nutrient_analysis', {})
+            if nutrient_analysis:
+                # Check for high-risk nutrients
+                high_risk_penalty = 0
+                for nutrient, analysis in nutrient_analysis.items():
+                    if any(risk_word in analysis.lower() for risk_word in ['high', 'excess', 'risk', 'concern']):
+                        high_risk_penalty -= 3
+                
+                if high_risk_penalty < 0:
+                    medical_scores['medical_nutrient_risks'] = {
+                        'rule_name': 'medical_nutrient_risks',
+                        'value': abs(high_risk_penalty),
+                        'score_impact': high_risk_penalty,
+                        'description': 'High-risk nutrients identified by medical analysis',
+                        'source': 'BioMistral-7B Medical Model',
+                        'nutrient_analysis': nutrient_analysis
+                    }
+            
+        except Exception as e:
+            medical_scores['medical_analysis_error'] = {
+                'rule_name': 'medical_analysis_error',
+                'value': 0,
+                'score_impact': 0,
+                'description': f'Medical analysis error: {str(e)}',
+                'source': 'BioMistral-7B Medical Model'
+            }
+        
+        return medical_scores

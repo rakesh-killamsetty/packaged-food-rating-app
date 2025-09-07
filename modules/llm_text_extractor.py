@@ -7,6 +7,7 @@ import os
 from PIL import Image
 import base64
 import io
+from .medical_llm_service import medical_llm_service
 
 class LLMTextExtractor:
     """
@@ -17,6 +18,7 @@ class LLMTextExtractor:
     def __init__(self):
         self.openai_client = None
         self.anthropic_client = None
+        self.medical_llm = medical_llm_service
         
         # Initialize API clients if keys are available
         if os.getenv('OPENAI_API_KEY'):
@@ -24,6 +26,9 @@ class LLMTextExtractor:
         
         if os.getenv('ANTHROPIC_API_KEY'):
             self.anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        
+        # Initialize medical LLM
+        self.medical_llm.load_model()
     
     def extract_nutrition_from_image(self, image: Image.Image) -> Dict[str, Any]:
         """Extract nutrition information from food label image using LLM"""
@@ -447,3 +452,86 @@ class LLMTextExtractor:
                 
         except Exception as e:
             return {'error': f'LLM health insights failed: {str(e)}'}
+    
+    def analyze_with_medical_llm(self, 
+                                product_name: str, 
+                                ingredients: List[str], 
+                                nutrition_facts: Dict[str, Any],
+                                barcode: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Analyze food product using medical-grade BioMistral LLM
+        """
+        try:
+            # Use medical LLM for comprehensive analysis
+            medical_analysis = self.medical_llm.analyze_food_nutrition(
+                product_name=product_name,
+                ingredients=ingredients,
+                nutrition_facts=nutrition_facts,
+                barcode=barcode
+            )
+            
+            # Enhance with additional LLM analysis if available
+            if self.openai_client or self.anthropic_client:
+                enhanced_analysis = self._enhance_with_commercial_llm(
+                    medical_analysis, product_name, ingredients, nutrition_facts
+                )
+                return enhanced_analysis
+            
+            return medical_analysis
+            
+        except Exception as e:
+            return {'error': f'Medical LLM analysis failed: {str(e)}'}
+    
+    def _enhance_with_commercial_llm(self, 
+                                   medical_analysis: Dict[str, Any],
+                                   product_name: str,
+                                   ingredients: List[str],
+                                   nutrition_facts: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance medical analysis with commercial LLM insights
+        """
+        try:
+            prompt = f"""
+            Enhance this medical analysis with additional insights:
+            
+            Product: {product_name}
+            Medical Analysis: {json.dumps(medical_analysis, indent=2)}
+            
+            Provide additional insights in JSON format:
+            {{
+                "consumer_friendly_explanation": "Simple explanation for consumers",
+                "comparison_to_alternatives": "How this compares to similar products",
+                "storage_recommendations": ["rec1", "rec2", ...],
+                "preparation_tips": ["tip1", "tip2", ...],
+                "sustainability_notes": "Environmental impact notes",
+                "cost_effectiveness": "Value for money assessment"
+            }}
+            """
+            
+            if self.openai_client:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=800,
+                    temperature=0.3
+                )
+                content = response.choices[0].message.content
+            else:
+                response = self.anthropic_client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=800,
+                    temperature=0.3,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                content = response.content[0].text
+            
+            # Extract JSON from response
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                enhanced_insights = json.loads(json_match.group())
+                medical_analysis.update(enhanced_insights)
+            
+            return medical_analysis
+            
+        except Exception as e:
+            return medical_analysis  # Return original analysis if enhancement fails
